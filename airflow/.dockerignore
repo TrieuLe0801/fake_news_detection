@@ -1,0 +1,26 @@
+# Ignore Git-related files
+.git
+.gitignore
+
+# Ignore local development files and IDE configurations
+.vscode/
+.idea/
+*.pyc
+__pycache__/
+
+# Ignore virtual environment directories
+venv/
+env/
+
+# Ignore large data directories or logs if not needed in the image
+data/
+logs/
+
+# Ignore .env files that might contain sensitive environment variables
+.env
+
+# Ignore temporary or build artifacts
+*.tmp
+*.log
+dist/
+build/
