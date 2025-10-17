@@ -1,0 +1,8 @@
+bs4
+selenium
+feedparser
+python-dotenv
+pandas
+numpy
+webdriver-manager
+fake-useragent
