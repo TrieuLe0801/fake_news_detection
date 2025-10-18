@@ -3,9 +3,9 @@
 # GLOBALS
 
 PROJECT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
-PROJECT_NAME = fake_new_detection
+PROJECT_NAME = fake_news_detection
 PYTHON_INTERPRETER = python3
-CHECK_DIRS := fake_new_detection
+CHECK_DIRS := src tests utils
 
 
 ifeq (,$(shell which conda))
