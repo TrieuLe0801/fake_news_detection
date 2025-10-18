@@ -12,3 +12,4 @@ fake-useragent
 SQLAlchemy
 requests
 lxml
+openpyxl
