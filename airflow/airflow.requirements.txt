@@ -6,3 +6,14 @@ pandas
 numpy
 webdriver-manager
 fake-useragent
+bs4
+selenium
+feedparser
+python-dotenv
+pandas
+numpy
+webdriver-manager
+fake-useragent
+SQLAlchemy
+requests
+lxml
