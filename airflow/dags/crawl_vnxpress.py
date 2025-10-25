@@ -15,7 +15,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from loguru import logger
 
 sys.path.append(os.path.abspath("/opt"))
-from utils import WebdriverSingleton
+from utils import WebdriverFactory
 
 
 default_args = {
@@ -51,10 +51,9 @@ def crawl_vnexpress_health(output_csv: str="", browser: str="chrome", driver_pat
         )
 
     # Initialize WebDriver (Singleton)
-    driver_singleton = WebdriverSingleton(
+    driver = WebdriverFactory.create_webdriver(
         browser=browser, headless=True, timeout=30, driver_path=driver_path
     )
-    driver = driver_singleton.get_driver()
 
     try:
         for i in range(start_page, end_page + 1):
@@ -170,7 +169,7 @@ with DAG(
 ) as dag:
     
     def crawl_task(**context):
-        output_csv = "vnxpress_news.csv"
+        output_csv = "/opt/data/vnxpress_news.csv"
 
         crawl_vnexpress_health(
             output_csv=output_csv,

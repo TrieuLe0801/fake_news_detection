@@ -11,7 +11,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 from src import HealthNews
-from utils import WebdriverSingleton
+from utils import WebdriverFactory
 
 
 def crawl_vnexpress_health(output_csv="tests/vnxpress_news.csv", start_page=1, end_page=3):
@@ -36,10 +36,9 @@ def crawl_vnexpress_health(output_csv="tests/vnxpress_news.csv", start_page=1, e
         )
 
     # Initialize WebDriver (Singleton)
-    driver_singleton = WebdriverSingleton(
+    driver = WebdriverFactory.create_webdriver(
         browser="chrome", headless=True, timeout=30, driver_path="tests/chromedriver"
     )
-    driver = driver_singleton.get_driver()
 
     try:
         for i in range(start_page, end_page + 1):

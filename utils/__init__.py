@@ -1,3 +1,3 @@
-from .webdriver import WebdriverSingleton
+from .webdriver import WebdriverFactory
 
-__all__ = ["WebdriverSingleton"]
+__all__ = ["WebdriverFactory"]
