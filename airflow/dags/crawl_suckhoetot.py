@@ -58,7 +58,7 @@ def crawl_suckhoetot_news(
 
     # Initialize WebDriver (Singleton)
     driver = WebdriverFactory.create_webdriver(
-        browser=browser, headless=False, timeout=30, driver_path=driver_path
+        browser=browser, headless=True, timeout=30, driver_path=driver_path
     )
 
     try:
@@ -179,7 +179,7 @@ with DAG(
     def crawl_task(**context):
         output_csv = "/opt/data/suckhoetot_news.csv"
         browser = "chrome"
-        driver_path = "/chromedriver-linux64/chromedriver"
+        driver_path = "chromedriver-linux64/chromedriver"
 
         crawl_suckhoetot_news(
             output_csv=output_csv,
