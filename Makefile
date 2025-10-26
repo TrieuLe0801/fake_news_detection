@@ -5,7 +5,7 @@
 PROJECT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 PROJECT_NAME = fake_news_detection
 PYTHON_INTERPRETER = python3
-CHECK_DIRS := src tests utils
+CHECK_DIRS := src tests utils airflow
 
 
 ifeq (,$(shell which conda))
