@@ -9,9 +9,11 @@ ENV PYTHONPATH=$PYTHONPATH:${AIRFLOW_USER_HOME}:/usr/local/bin
 WORKDIR ${AIRFLOW_USER_HOME}
 
 USER root
-# RUN groupadd --gid 999 docker \
-#    && usermod -aG docker airflow
-RUN usermod -aG docker airflow
+# Check if group with GID 999 exists, if not create new one.
+RUN if ! getent group 999 >/dev/null; then \
+        groupadd --gid 999 docker; \
+    fi \
+    && usermod -aG docker airflow
 
 RUN apt-get update && apt-get install -y \
     unzip \
