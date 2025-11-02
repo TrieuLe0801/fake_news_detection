@@ -14,3 +14,5 @@ requests
 lxml
 openpyxl
 loguru
+pg-bulk-loader
+psycopg2-binary

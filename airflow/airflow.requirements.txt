@@ -10,3 +10,5 @@ SQLAlchemy
 requests
 lxml
 loguru
+pg-bulk-loader
+psycopg2-binary
