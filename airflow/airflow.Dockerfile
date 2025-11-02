@@ -21,8 +21,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
     libfuse2 \
-    --no-install-recommends && \
-    rm -rf /var/lib/apt/lists/*
+    --no-install-recommends
 
 # Install Chrome and ChromeDriver
 RUN wget -O /opt/google-chrome-stable_current_amd64.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
