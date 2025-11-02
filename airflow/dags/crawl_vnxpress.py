@@ -1,3 +1,4 @@
+import io
 import os
 import re
 import sys
@@ -12,11 +13,21 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from airflow import DAG
 
 sys.path.append(os.path.abspath("/opt"))
+from dotenv import load_dotenv
+
+from src import Base, HealthNews
 from utils import WebdriverFactory
+
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+engine = create_engine(DATABASE_URL)
 
 default_args = {
     "owner": "airflow",
@@ -27,6 +38,70 @@ default_args = {
     "retries": 2,
     "retry_delay": timedelta(minutes=5),
 }
+
+
+def insert_or_update(df: pd.DataFrame, engine: object = engine, mode: str = "upsert"):
+    """
+    Bulk insert a pandas DataFrame into PostgreSQL using COPY with ON CONFLICT handling.
+
+    Args:
+        df (pd.DataFrame): Data to insert.
+        engine (object): SQLAlchemy engine connected to the PostgreSQL database.
+        mode (str): "upsert" (insert or update existing) or "ignore" (skip duplicates).
+    """
+    # Ensure only valid columns from model are included
+    # Ensure table exists (create it if missing)
+    Base.metadata.create_all(engine)
+    valid_columns = [
+        col.name
+        for col in HealthNews.__table__.columns
+        if not col.primary_key and col.name in df.columns
+    ]
+    df = df[valid_columns]
+
+    table_name = HealthNews.__tablename__
+
+    with sessionmaker(bind=engine)() as session:
+        raw_conn = session.connection().connection
+        with raw_conn.cursor() as cursor:
+            # Step 1: Create temporary table
+            cursor.execute(
+                f"CREATE TEMP TABLE temp_{table_name} AS SELECT * FROM {table_name} LIMIT 0;"
+            )
+
+            # Step 2: COPY into temporary table
+            with io.StringIO() as buffer:
+                df.to_csv(buffer, index=False, header=False)
+                buffer.seek(0)
+                cursor.copy_expert(
+                    f"""
+                    COPY temp_{table_name} ({','.join(df.columns)})
+                    FROM STDIN WITH (FORMAT CSV, DELIMITER ',', NULL '', QUOTE '"')
+                    """,
+                    buffer,
+                )
+
+            # Step 3: Merge data with conflict handling
+            if mode == "ignore":
+                conflict_action = "DO NOTHING"
+            elif mode == "upsert":
+                update_clause = ", ".join(
+                    [f"{col}=EXCLUDED.{col}" for col in df.columns if col != "url"]
+                )
+                conflict_action = f"DO UPDATE SET {update_clause}"
+            else:
+                raise ValueError("Invalid mode. Use 'upsert' or 'ignore'.")
+
+            cursor.execute(
+                f"""
+                INSERT INTO {table_name} ({','.join(df.columns)})
+                SELECT {','.join(df.columns)} FROM temp_{table_name}
+                ON CONFLICT (url) {conflict_action};
+            """
+            )
+
+        raw_conn.commit()
+    logger.info("✅ Inserted or updated rows successfully.")
 
 
 def crawl_vnexpress_health(
@@ -163,6 +238,8 @@ def crawl_vnexpress_health(
         driver.quit()
         logger.info("Driver closed.")
 
+    return existing_df
+
 
 # ---- Define the DAG ----
 with DAG(
@@ -180,19 +257,29 @@ with DAG(
         browser = "chrome"
         driver_path = "chromedriver-linux64/chromedriver"
 
-        crawl_vnexpress_health(
+        data_df = crawl_vnexpress_health(
             output_csv=output_csv,
             browser=browser,
             driver_path=driver_path,
             start_page=1,
             end_page=20,
         )
+        context["ti"].xcom_push(key="data", value=data_df)
+
+    def insert_and_update_task(**context):
+        ti = context["ti"]
+        data_df = ti.xcom_pull(task_ids="crawl_vnexpress_health", key="data")
+        insert_or_update(data_df, engine=engine, mode="upsert")
 
     # ---- PythonOperator ----
     crawl_vnexpress = PythonOperator(
         task_id="crawl_vnexpress_health",
         python_callable=crawl_task,
-        # provide_context=True,
     )
 
-    crawl_vnexpress
+    insert_and_update = PythonOperator(
+        task_id="insert_and_update_vnexpress_data",
+        python_callable=insert_and_update_task,
+    )
+
+    crawl_vnexpress >> insert_and_update

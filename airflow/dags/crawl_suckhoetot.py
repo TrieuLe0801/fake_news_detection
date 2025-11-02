@@ -188,7 +188,7 @@ with DAG(
             start_page=1,
             end_page=7,
         )
-    
+
     crawl_suckhoetot = PythonOperator(
         task_id="crawl_suckhoetot_task",
         python_callable=crawl_task,
