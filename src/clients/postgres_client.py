@@ -4,9 +4,7 @@ import pandas as pd
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-from src.data_models.health_news import HealthNews
-
-Base = declarative_base()
+from src.data_models.health_news import Base, HealthNews
 
 
 def insert_or_update(df: pd.DataFrame, engine: object, mode: str = "upsert"):
@@ -72,4 +70,14 @@ def insert_or_update(df: pd.DataFrame, engine: object, mode: str = "upsert"):
             cursor.execute(f"DROP TABLE IF EXISTS temp_{table_name};")
 
         raw_conn.commit()
-    # print.info("✅ Inserted or updated rows successfully.")
+
+
+def get_all_data(engine: object):
+    with sessionmaker(bind=engine)() as session:
+        health_news = session.query(HealthNews).order_by(HealthNews.id).all()
+        return health_news
+
+
+# def get_data_at_df(engine: object):
+#     with sessionmaker(bind=engine)() as session:
+#         health_news = session.query(HealthNews).order_by(HealthNews.id).all()
