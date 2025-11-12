@@ -219,3 +219,6 @@ data/
 chromedriver*
 geckodriver*
 msedgedriver*
+
+# Vncorenlp
+vncorenlp
