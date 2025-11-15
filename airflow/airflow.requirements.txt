@@ -12,3 +12,5 @@ lxml
 loguru
 pg-bulk-loader
 psycopg2-binary
+pyvi
+py_vncorenlp
