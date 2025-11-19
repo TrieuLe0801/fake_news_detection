@@ -20,3 +20,5 @@ pyvi
 py_vncorenlp
 seaborn
 wordcloud
+streamlit
+pygwalker
