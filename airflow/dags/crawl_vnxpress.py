@@ -20,7 +20,7 @@ from airflow import DAG
 sys.path.append(os.path.abspath("/opt"))
 from dotenv import load_dotenv
 
-from src import insert_or_update
+from src.clients.postgres_client import insert_or_update
 from utils import WebdriverFactory
 
 load_dotenv()

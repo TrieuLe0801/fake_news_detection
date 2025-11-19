@@ -65,6 +65,7 @@ x-airflow-common:
     AIRFLOW__CORE__LOAD_EXAMPLES: 'true'
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
     DATABASE_URL: postgresql+psycopg2://airflow:airflow@airflow-postgres-1:5432/airflow
+    VNCORENLP_PATH: /opt/vncorenlp
     # yamllint disable rule:line-length
     # Use simple http server on scheduler for health checks
     # See https://airflow.apache.org/docs/apache-airflow/stable/administration-and-deployment/logging-monitoring/check-health.html#scheduler-health-check-server
@@ -82,7 +83,10 @@ x-airflow-common:
     - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
     - ../${AIRFLOW_PROJ_DIR:-.}/utils:/opt/utils
     - ../${AIRFLOW_PROJ_DIR:-.}/data:/opt/data
-    - ../${AIRFLOW_PROJ_DIR:-.}/src:/opt/src
+    - ../${AIRFLOW_PROJ_DIR:-.}/src/clients:/opt/src/clients
+    - ../${AIRFLOW_PROJ_DIR:-.}/src/data_models:/opt/src/data_models
+    # - ../${AIRFLOW_PROJ_DIR:-.}/src/processor:/opt/src/processor
+    - ../${AIRFLOW_PROJ_DIR:-.}/vncorenlp:/opt/vncorenlp
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     &airflow-common-depends-on

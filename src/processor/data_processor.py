@@ -1,23 +1,16 @@
 import os
 import re
-import unicodedata
 
 import pandas as pd
 from dotenv import load_dotenv
+from pyvi import ViTokenizer
 
 from src import VnCoreNLP_Singleton
 
 load_dotenv()
 
 VNCORENLP_PATH = os.getenv("VNCORENLP_PATH")
-# def normalize_vietnamese(text):
-#     # Normalize Unicode characters
-#     text = unicodedata.normalize("NFC", text)
-#     # Remove diacritics
-#     text = "".join(
-#         c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn"
-#     )
-#     return text
+rdrsegmenter = VnCoreNLP_Singleton.get_instance(VNCORENLP_PATH)
 
 
 def clean_text(text):
@@ -40,18 +33,15 @@ def word_segmentation(text: str, lib: str = ""):
         lib (str, optional): Segmentation libraries, including: pyvi, vncorenlp. Defaults to "pyvi".
     """
     if lib == "pyvi":
-        from pyvi import ViTokenizer
-
         text = ViTokenizer.tokenize(text)
         return text
     else:
-        rdrsegmenter = VnCoreNLP_Singleton.get_instance(VNCORENLP_PATH)
         text = rdrsegmenter.word_segment(text)
         text = " ".join(text)
         return text
 
 
-def normalize_and_clean_vietnamese_text(df, text_column, lib):
+def normalize_and_clean_vietnamese_text(df: pd.DataFrame, text_column: str, lib: str = ""):
     """
     Normalize and clean Vietnamese textual data in a DataFrame.
 

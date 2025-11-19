@@ -21,7 +21,7 @@ from airflow import DAG
 sys.path.append(os.path.abspath("/opt"))
 from dotenv import load_dotenv
 
-from src import Base, HealthNews
+from src.data_models.health_news import Base, HealthNews
 from utils import WebdriverFactory
 
 load_dotenv()
