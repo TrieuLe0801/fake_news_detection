@@ -13,7 +13,7 @@ plot_lock = RLock()
 def plot_length_distribution(df: pd.DataFrame, label_col: str):
     with plot_lock:
         fig, ax = plt.subplots(figsize=(15, 10))
-        sns.histplot(data=df, x="text_len_words", hue=label_col, bins=50, kde=True, ax=ax)
+        sns.histplot(data=df, x="word_count", hue=label_col, bins=50, kde=True, ax=ax)
         ax.set_title("Words Distribution by Labels")
         ax.set_xlabel("Number of Words")
         ax.set_ylabel("Number of News")
