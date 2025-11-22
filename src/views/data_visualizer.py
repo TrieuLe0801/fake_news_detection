@@ -84,9 +84,8 @@ def plot_source_label_counts_grouped(df: pd.DataFrame, source_col: str, label_co
         fig, ax = plt.subplots(figsize=(15, 10))
 
         # First bar
-        ax.bar(x - width / 2, counts[labels[0]], width, label=labels[0])
-        # Second bar
-        ax.bar(x + width / 2, counts[labels[1]], width, label=labels[1])
+        for i, label in enumerate(labels):
+            ax.bar(x + i * width - width/len(labels), counts[label], width, label=label)
 
         # Set labels
         ax.set_xticks(x)
