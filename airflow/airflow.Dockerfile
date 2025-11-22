@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
     libfuse2 \
+    default-jdk \
     --no-install-recommends
 
 # Install Chrome and ChromeDriver
