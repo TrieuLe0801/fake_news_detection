@@ -114,7 +114,7 @@ class HealthNewsModel:
 
         # Add text length features
         df["text_length"] = df[text_col].astype(str).str.len()
-        df["word_count"] = df[text_col].astype(str).str.split().str.len()
+        df["word_count"] = df[text_col].astype(str).apply(lambda x: len(x.split()))
 
         # Add date features
         if "crawled_at" in df.columns:

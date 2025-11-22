@@ -1,3 +1,4 @@
+import os
 from threading import RLock
 
 import matplotlib.pyplot as plt
@@ -57,12 +58,16 @@ def generate_wordcloud(text: str, title: str = None, stopwords: set = None):
 
 def wordcloud_by_label(df: pd.DataFrame, text_col: str, label_col: str):
     figs = {}
-    # stop = set(STOPWORDS)
+    stopwords_path = os.getenv("vietnamese-stopwords-dash.txt")
+    with open(stopwords_path, "r") as file:
+        stopwords = set(w.strip() for w in file.readlines())
     labels = df[label_col].unique()
     for lbl in labels:
         subset = df[df[label_col] == lbl]
         text = " ".join(subset[text_col].astype(str).tolist())
-        figs[lbl] = generate_wordcloud(text, title=f"WordCloud Label = {lbl}", stopwords=set())
+        figs[lbl] = generate_wordcloud(
+            text, title=f"WordCloud Label = {lbl}", stopwords=set(stopwords)
+        )
     return figs
 
 
@@ -85,7 +90,7 @@ def plot_source_label_counts_grouped(df: pd.DataFrame, source_col: str, label_co
 
         # First bar
         for i, label in enumerate(labels):
-            ax.bar(x + i * width - width/len(labels), counts[label], width, label=label)
+            ax.bar(x + i * width - width / len(labels), counts[label], width, label=label)
 
         # Set labels
         ax.set_xticks(x)

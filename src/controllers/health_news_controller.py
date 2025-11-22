@@ -14,7 +14,7 @@ class EDAController:
             "label_col": "is_fake",
             "source_col": "source",
             "date_col": "crawled_at",
-            "text_col": "content",  
+            "text_col": "normalized_content",
         }
         self.filters = {}
 
