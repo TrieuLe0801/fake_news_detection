@@ -18,6 +18,7 @@ class HealthNews(Base):
     published_at = Column(DateTime, nullable=True)
     crawled_at = Column(DateTime, default=datetime.utcnow)
     is_fake = Column(Boolean, default=None)  # Can be updated after classifying
+    normalized_content = Column(Text, nullable=True)
 
     def __repr__(self):
         return f"<HealthNews(title={self.title[:50]}, source={self.source})>"
