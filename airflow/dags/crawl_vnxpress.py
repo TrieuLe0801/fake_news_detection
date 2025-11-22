@@ -21,6 +21,7 @@ sys.path.append(os.path.abspath("/opt"))
 from dotenv import load_dotenv
 
 from src.clients.postgres_client import insert_or_update
+from src.processor.data_processor import clean_text, word_segmentation
 from utils import WebdriverFactory
 
 load_dotenv()
@@ -64,6 +65,7 @@ def crawl_vnexpress_health(
                 "published_at",
                 "crawled_at",
                 "is_fake",
+                "normalized_content",
             ]
         )
 
@@ -121,6 +123,7 @@ def crawl_vnexpress_health(
                     "published_at": None,
                     "crawled_at": datetime.now(timezone.utc),
                     "is_fake": False,
+                    "normalized_content": None,
                 }
 
                 # Load article detail page
@@ -138,13 +141,18 @@ def crawl_vnexpress_health(
                 # Extract content
                 content_section = detail_soup.find(
                     "section", class_="section page-detail top-detail"
-                )
+                ) or detail_soup.find("section", class_="section page-detail detail-photo")
                 if content_section:
                     paragraphs = content_section.find_all("p")
                     content = "\n".join(
                         p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)
                     )
                     news["content"] = content
+
+                    # Preprocess and normalize content
+                    news["normalized_content"] = word_segmentation(
+                        clean_text(content), lib="", remove_stopwords=True
+                    )
                 else:
                     logger.info(f"Content not found in {url}")
 
@@ -162,6 +170,14 @@ def crawl_vnexpress_health(
                 existing_df = pd.concat([existing_df, new_rows]).drop_duplicates(
                     subset=["url"], keep="first"
                 )
+                # Handle the TIMESTAMP
+                existing_df["crawled_at"] = pd.to_datetime(
+                    existing_df["crawled_at"], errors="coerce"
+                )
+
+                # Drop NaN content
+                existing_df = existing_df.dropna(subset=["content"])
+
                 existing_df.to_csv(output_csv, index=False, encoding="utf-8")
 
                 # Insert and upsert data

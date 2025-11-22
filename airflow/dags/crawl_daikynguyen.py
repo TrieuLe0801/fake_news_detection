@@ -17,6 +17,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from airflow import DAG
+from src.processor.data_processor import clean_text, word_segmentation
 
 sys.path.append(os.path.abspath("/opt"))
 from dotenv import load_dotenv
@@ -199,6 +200,7 @@ def crawl_daikynguyen_health(
                     "published_at": published_date,
                     "crawled_at": datetime.now(timezone.utc),
                     "is_fake": True,
+                    "normalized_content": None,
                 }
 
                 # Load article detail page
@@ -224,6 +226,11 @@ def crawl_daikynguyen_health(
                         p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)
                     )
                     news["content"] = content
+
+                    # Preprocess and normalize content
+                    news["normalized_content"] = word_segmentation(
+                        clean_text(content), lib="", remove_stopwords=True
+                    )
                 else:
                     logger.info(f"Content not found in {url}")
 
@@ -232,6 +239,10 @@ def crawl_daikynguyen_health(
                 existing_df = pd.concat([existing_df, new_row]).drop_duplicates(
                     subset=["url"], keep="first"
                 )
+
+                # Drop NaN content
+                existing_df = existing_df.dropna(subset=["content"])
+
                 existing_df.to_csv(output_csv, index=False, encoding="utf-8")
 
                 logger.info(f"Saved article: {title[:80]}")
