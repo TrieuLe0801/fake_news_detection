@@ -21,4 +21,5 @@ py_vncorenlp
 seaborn
 wordcloud
 streamlit
+streamlit[charts]
 pygwalker
