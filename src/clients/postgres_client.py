@@ -1,7 +1,6 @@
 import io
 
 import pandas as pd
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 from src.data_models.health_news import Base, HealthNews
