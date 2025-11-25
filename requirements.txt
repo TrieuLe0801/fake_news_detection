@@ -23,3 +23,5 @@ wordcloud
 streamlit
 streamlit[charts]
 pygwalker
+umap-learn
+rank-bm25
