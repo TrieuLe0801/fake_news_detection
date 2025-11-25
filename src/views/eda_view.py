@@ -5,12 +5,18 @@ import streamlit as st
 from matplotlib import pyplot as plt
 
 from src.views.data_visualizer import (
+    compute_tfidf_embeddings,
     generate_wordcloud,
     ngram_by_label,
     plot_length_distribution,
     plot_source_label_counts,
     plot_source_label_counts_grouped,
+    plot_tfidf_3d,
+    plot_tfidf_scatter,
+    plot_tfidf_scatter_with_sources,
     plot_top_ngrams,
+    plot_top_tfidf_terms,
+    reduce_dimensions,
     wordcloud_by_label,
 )
 
@@ -25,6 +31,12 @@ class EDAView:
             "top_ngrams": plot_top_ngrams,
             "ngrams_label": ngram_by_label,
             "source_label": plot_source_label_counts_grouped,
+            "reduce_dimensions": reduce_dimensions,
+            "compute_tfidf_embeddings": compute_tfidf_embeddings,
+            "plot_tfidf_scatter_with_sources": plot_tfidf_scatter_with_sources,
+            "plot_tfidf_scatter": plot_tfidf_scatter,
+            "plot_tfidf_3d": plot_tfidf_3d,
+            "plot_top_tfidf_terms": plot_top_tfidf_terms,
         }
 
     def render_title(self):
@@ -203,6 +215,96 @@ class EDAView:
         fig = self.viz["source_label"](df, source_col, label_col)
         st.pyplot(fig)
         plt.close(fig)
+        st.divider()
+
+    def render_tfidf_embeddings(self, df, text_col, label_col, source_col):
+        """Render TF-IDF embeddings visualization section"""
+        st.header("TF-IDF Embeddings Visualization")
+
+        # Settings in sidebar
+        with st.sidebar:
+            st.subheader("TF-IDF Settings")
+            method = st.selectbox(
+                "Reduction Method",
+                options=["PCA", "t-SNE", "UMAP", "SVD"],
+                index=0,
+                help="Dimensionality reduction method for visualization",
+            )
+
+            n_components = st.radio(
+                "Dimensions", options=[2, 3], index=0, help="2D or 3D visualization"
+            )
+
+            max_features = st.slider(
+                "Max TF-IDF Features",
+                min_value=1000,
+                max_value=10000,
+                value=5000,
+                step=1000,
+                help="Maximum number of TF-IDF features",
+            )
+
+            show_sources = st.checkbox(
+                "Color by Source", value=False, help="Show sources in addition to labels"
+            )
+
+            show_top_terms = st.checkbox(
+                "Show Top TF-IDF Terms", value=True, help="Display top TF-IDF terms for each label"
+            )
+
+        # Compute embeddings
+        with st.spinner(f"Computing TF-IDF embeddings using {method}..."):
+            # Compute TF-IDF
+            tfidf_matrix, vectorizer = self.viz["compute_tfidf_embeddings"](
+                df, text_col, max_features=max_features
+            )
+
+            # Reduce dimensions
+            embeddings = self.viz["reduce_dimensions"](
+                tfidf_matrix, method=method.lower().replace("-", ""), n_components=n_components
+            )
+
+        # Display metrics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Documents", len(df))
+        with col2:
+            st.metric("TF-IDF Features", tfidf_matrix.shape[1])
+        with col3:
+            st.metric("Embedding Dimensions", n_components)
+
+        st.divider()
+
+        # Plot embeddings
+        if n_components == 2:
+            if show_sources:
+                st.subheader(f"2D {method} Embeddings - By Source and Label")
+                fig = self.viz["plot_tfidf_scatter_with_sources"](
+                    df, embeddings, source_col, label_col, method=method
+                )
+            else:
+                st.subheader(f"2D {method} Embeddings - By Label")
+                fig = self.viz["plot_tfidf_scatter"](df, embeddings, label_col, method=method)
+            st.pyplot(fig)
+            plt.close(fig)
+        else:  # 3D
+            st.subheader(f"3D {method} Embeddings")
+            fig = self.viz["plot_tfidf_3d"](df, embeddings, label_col, method=method)
+            st.pyplot(fig)
+            plt.close(fig)
+
+        # Show top TF-IDF terms
+        if show_top_terms:
+            st.divider()
+            st.subheader("Top TF-IDF Terms by Label")
+            top_n = st.slider("Number of top terms", 10, 50, 20, 5)
+            fig = self.viz["plot_top_tfidf_terms"](
+                tfidf_matrix, vectorizer, df, label_col, top_n=top_n
+            )
+            st.pyplot(fig)
+            plt.close(fig)
+
+        st.divider()
 
     def show_error(self, message: str):
         """Display error message"""

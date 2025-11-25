@@ -68,3 +68,22 @@ class EDAController:
         """Prepare data for source-label analysis"""
         df = self.model.get_dataframe()
         return df, self.config["source_col"], self.config["label_col"]
+
+    def prepare_tfidf_embedding_data(
+        self, method: str = "pca", n_components: int = 2, max_features: int = 5000
+    ) -> Tuple[pd.DataFrame, str, int, int]:
+        """Prepare TF-IDF embeddings for visualization
+
+        Args:
+            method: Dimensionality reduction method ('pca', 'tsne', 'umap', 'svd')
+            n_components: Number of dimensions (2 or 3)
+            max_features: Maximum TF-IDF features
+
+        Returns:
+            Tuple of (df, embeddings, method_name, tfidf_matrix, vectorizer)
+        """
+        df = self.model.get_dataframe()
+        text_col = self.config["text_col"]
+
+        # This will be computed in the view using visualizer functions
+        return df, text_col, method, n_components, max_features

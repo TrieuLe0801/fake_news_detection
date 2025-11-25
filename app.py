@@ -90,6 +90,14 @@ def main():
         # Render source-label distribution
         df, source_col, label_col = controller.get_source_label_data()
         view.render_source_label(df, source_col, label_col)
+
+        # Render TF-IDF embeddings visualization
+        with view.show_loading("Computing TF-IDF embeddings..."):
+            df = controller.model.get_dataframe()
+            text_col = controller.config['text_col']
+            label_col = controller.config['label_col']
+            source_col = controller.config['source_col']
+            view.render_tfidf_embeddings(df, text_col, label_col, source_col)
         
     except Exception as e:
         view.show_error(f"An error occurred: {str(e)}")
