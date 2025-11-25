@@ -222,3 +222,6 @@ msedgedriver*
 
 # Vncorenlp
 vncorenlp
+
+# .github
+.github/
