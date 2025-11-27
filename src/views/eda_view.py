@@ -1,21 +1,23 @@
 from datetime import date, datetime
 from typing import Any, Dict, List
 
+import pandas as pd
 import streamlit as st
 from matplotlib import pyplot as plt
 
 from src.views.data_visualizer import (
-    compute_tfidf_embeddings,
+    compute_embeddings,
     generate_wordcloud,
     ngram_by_label,
+    plot_embedding_3d,
+    plot_embedding_3d_with_sources,
+    plot_embedding_scatter,
+    plot_embedding_scatter_with_sources,
     plot_length_distribution,
     plot_source_label_counts,
     plot_source_label_counts_grouped,
-    plot_tfidf_3d,
-    plot_tfidf_scatter,
-    plot_tfidf_scatter_with_sources,
     plot_top_ngrams,
-    plot_top_tfidf_terms,
+    plot_top_weighted_terms,
     reduce_dimensions,
     wordcloud_by_label,
 )
@@ -32,11 +34,12 @@ class EDAView:
             "ngrams_label": ngram_by_label,
             "source_label": plot_source_label_counts_grouped,
             "reduce_dimensions": reduce_dimensions,
-            "compute_tfidf_embeddings": compute_tfidf_embeddings,
-            "plot_tfidf_scatter_with_sources": plot_tfidf_scatter_with_sources,
-            "plot_tfidf_scatter": plot_tfidf_scatter,
-            "plot_tfidf_3d": plot_tfidf_3d,
-            "plot_top_tfidf_terms": plot_top_tfidf_terms,
+            "compute_embeddings": compute_embeddings,
+            "plot_embedding_scatter_with_sources": plot_embedding_scatter_with_sources,
+            "plot_embedding_scatter": plot_embedding_scatter,
+            "plot_embedding_3d_with_sources": plot_embedding_3d_with_sources,
+            "plot_embedding_3d": plot_embedding_3d,
+            "plot_top_weighted_terms": plot_top_weighted_terms,
         }
 
     def render_title(self):
@@ -218,21 +221,37 @@ class EDAView:
         st.divider()
 
     def render_tfidf_embeddings(self, df, text_col, label_col, source_col):
-        """Render TF-IDF embeddings visualization section"""
-        st.header("TF-IDF Embeddings Visualization")
+        """Render TF-IDF/BM25 embeddings visualization section"""
+        st.header("Text Embeddings Visualization")
+
+        # Initialize session state for caching
+        if "embedding_cache" not in st.session_state:
+            st.session_state.embedding_cache = {}
 
         # Settings in sidebar
         with st.sidebar:
-            st.subheader("TF-IDF Settings")
-            method = st.selectbox(
-                "Reduction Method",
-                options=["PCA", "t-SNE", "UMAP", "SVD"],
+            st.subheader("Embedding Settings")
+
+            # Embedding Method Selection
+            embedding_method = st.radio(
+                "Embedding Method",
+                options=["TF-IDF", "BM25"],
                 index=0,
-                help="Dimensionality reduction method for visualization",
+                help="""
+                **TF-IDF:** Classic method, linear weighting
+                **BM25:** Modern method, non-linear saturation, better for ranking
+                """,
+            )
+
+            reduction_method = st.selectbox(
+                "Reduction Method", options=["SVD", "PCA", "UMAP", "t-SNE"], index=0
             )
 
             n_components = st.radio(
-                "Dimensions", options=[2, 3], index=0, help="2D or 3D visualization"
+                "Dimensions",
+                options=[2, 3],
+                index=0,
+                help="2D for simple visualization, 3D for more detail",
             )
 
             max_features = st.slider(
@@ -244,62 +263,198 @@ class EDAView:
                 help="Maximum number of TF-IDF features",
             )
 
-            show_sources = st.checkbox(
-                "Color by Source", value=False, help="Show sources in addition to labels"
+            show_sources = st.checkbox("Color by Source", value=False)
+            show_top_terms = st.checkbox("Show Top Weighted Terms", value=True)
+
+            # 3D specific settings
+        if n_components == 3:
+            st.divider()
+            st.subheader("3D Settings")
+            rotation_angle = st.slider(
+                "Rotation Angle",
+                min_value=0,
+                max_value=360,
+                value=45,
+                step=15,
+                help="Rotate the 3D plot",
+            )
+            elevation_angle = st.slider(
+                "Elevation Angle",
+                min_value=-90,
+                max_value=90,
+                value=20,
+                step=10,
+                help="Viewing elevation",
             )
 
-            show_top_terms = st.checkbox(
-                "Show Top TF-IDF Terms", value=True, help="Display top TF-IDF terms for each label"
+        # Cache management
+        col1, col2 = st.sidebar.columns(2)
+        with col1:
+            if st.button("Recompute", help="Force recompute embeddings"):
+                st.session_state.embedding_cache = {}
+                st.rerun()
+        with col2:
+            cache_size = len(st.session_state.embedding_cache)
+            st.metric("Cached", cache_size)
+
+        # Create cache key based on settings that affect computation
+        cache_key = (
+            embedding_method,
+            max_features,
+            reduction_method,
+            n_components,
+            len(df),  # Include data size
+            hash(df[text_col].iloc[0]) if len(df) > 0 else 0,  # Sample hash
+        )
+
+        # Check if we need to recompute
+        need_recompute = cache_key not in st.session_state.embedding_cache
+
+        if need_recompute:
+            # Show what's being computed
+            st.info(
+                f"""
+            Computing embeddings:
+            - Method: **{embedding_method}**
+            - Features: **{max_features}**
+            - Reduction: **{reduction_method}**
+            - Dimensions: **{n_components}D**
+            """
             )
 
-        # Compute embeddings
-        with st.spinner(f"Computing TF-IDF embeddings using {method}..."):
-            # Compute TF-IDF
-            tfidf_matrix, vectorizer = self.viz["compute_tfidf_embeddings"](
-                df, text_col, max_features=max_features
-            )
+            # Compute embeddings
+            with st.spinner(f"Computing {embedding_method} embeddings..."):
+                # Step 1: Compute TF-IDF/BM25 matrix
+                matrix, vectorizer = self.viz["compute_embeddings"](
+                    df,
+                    text_col,
+                    method=embedding_method.lower().replace("-", ""),
+                    max_features=max_features,
+                )
 
-            # Reduce dimensions
-            embeddings = self.viz["reduce_dimensions"](
-                tfidf_matrix, method=method.lower().replace("-", ""), n_components=n_components
+            with st.spinner(f"Reducing dimensions with {reduction_method}..."):
+                # Step 2: Reduce dimensions
+                embeddings = self.viz["reduce_dimensions"](
+                    matrix,
+                    method=reduction_method.lower().replace("-", ""),
+                    n_components=n_components,
+                )
+
+            # Cache the results
+            st.session_state.embedding_cache[cache_key] = {
+                "matrix": matrix,
+                "vectorizer": vectorizer,
+                "embeddings": embeddings,
+                "timestamp": pd.Timestamp.now(),
+            }
+
+            st.success("Embeddings computed and cached!")
+
+        else:
+            # Use cached results
+            cached_data = st.session_state.embedding_cache[cache_key]
+            matrix = cached_data["matrix"]
+            vectorizer = cached_data["vectorizer"]
+            embeddings = cached_data["embeddings"]
+
+            st.success(
+                f"Using cached embeddings (computed at {cached_data['timestamp'].strftime('%H:%M:%S')})"
             )
 
         # Display metrics
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Total Documents", len(df))
         with col2:
-            st.metric("TF-IDF Features", tfidf_matrix.shape[1])
+            st.metric("Features", matrix.shape[1])
         with col3:
-            st.metric("Embedding Dimensions", n_components)
-
+            st.metric("Embedding Method", embedding_method)
+        with col4:
+            sparsity = 1.0 - (matrix.nnz / (matrix.shape[0] * matrix.shape[1]))
+            st.metric("Sparsity", f"{sparsity*100:.1f}%")
         st.divider()
 
         # Plot embeddings
         if n_components == 2:
+            # 2D plots
             if show_sources:
-                st.subheader(f"2D {method} Embeddings - By Source and Label")
-                fig = self.viz["plot_tfidf_scatter_with_sources"](
-                    df, embeddings, source_col, label_col, method=method
+                st.subheader(f"2D {reduction_method} Embeddings - By Source and Label")
+                fig = self.viz["plot_embedding_scatter_with_sources"](
+                    df,
+                    embeddings,
+                    source_col,
+                    label_col,
+                    reduction_method=reduction_method,
+                    embedding_method=embedding_method,
                 )
             else:
-                st.subheader(f"2D {method} Embeddings - By Label")
-                fig = self.viz["plot_tfidf_scatter"](df, embeddings, label_col, method=method)
-            st.pyplot(fig)
-            plt.close(fig)
-        else:  # 3D
-            st.subheader(f"3D {method} Embeddings")
-            fig = self.viz["plot_tfidf_3d"](df, embeddings, label_col, method=method)
+                st.subheader(f"2D {reduction_method} Embeddings - By Label")
+                fig = self.viz["plot_embedding_scatter"](
+                    df,
+                    embeddings,
+                    label_col,
+                    reduction_method=reduction_method,
+                    embedding_method=embedding_method,
+                )
             st.pyplot(fig)
             plt.close(fig)
 
-        # Show top TF-IDF terms
+        else:  # 3D plots
+            if show_sources:
+                st.subheader(f"3D {reduction_method} Embeddings - By Source and Label")
+
+                # Create plot with custom viewing angles
+                fig = self.viz["plot_embedding_3d_with_sources"](
+                    df,
+                    embeddings,
+                    source_col,
+                    label_col,
+                    reduction_method=reduction_method,
+                    embedding_method=embedding_method,
+                )
+
+                # Update viewing angle if user changed it
+                if "rotation_angle" in locals() and "elevation_angle" in locals():
+                    ax = fig.gca()
+                    ax.view_init(elev=elevation_angle, azim=rotation_angle)
+
+            else:
+                st.subheader(f"3D {reduction_method} Embeddings - By Label")
+
+                # Create plot
+                fig = self.viz["plot_embedding_3d"](
+                    df,
+                    embeddings,
+                    label_col,
+                    reduction_method=reduction_method,
+                    embedding_method=embedding_method,
+                )
+
+                # Update viewing angle if user changed it
+                if "rotation_angle" in locals() and "elevation_angle" in locals():
+                    ax = fig.gca()
+                    ax.view_init(elev=elevation_angle, azim=rotation_angle)
+
+            st.pyplot(fig)
+            plt.close(fig)
+
+            # Add instructions for 3D
+            st.info(
+                """
+            **3D Viewing Tips:**
+            - Use the sliders in the sidebar to rotate the plot
+            - Look for cluster separation in 3D space
+            - 3D can reveal patterns not visible in 2D
+            """
+            )
+
+        # Show top weighted terms
         if show_top_terms:
-            st.divider()
-            st.subheader("Top TF-IDF Terms by Label")
+            st.markdown("---")
+            st.subheader(f"Top {embedding_method} Weighted Terms by Label")
             top_n = st.slider("Number of top terms", 10, 50, 20, 5)
-            fig = self.viz["plot_top_tfidf_terms"](
-                tfidf_matrix, vectorizer, df, label_col, top_n=top_n
+            fig = self.viz["plot_top_weighted_terms"](
+                matrix, vectorizer, df, label_col, method_name=embedding_method, top_n=top_n
             )
             st.pyplot(fig)
             plt.close(fig)
