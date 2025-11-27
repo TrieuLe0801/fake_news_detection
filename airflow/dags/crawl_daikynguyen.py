@@ -17,12 +17,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from airflow import DAG
-from src.processor.data_processor import clean_text, word_segmentation
 
 sys.path.append(os.path.abspath("/opt"))
 from dotenv import load_dotenv
 
 from src.data_models.health_news import Base, HealthNews
+from src.processor.data_processor import clean_text, word_segmentation
 from utils import WebdriverFactory
 
 load_dotenv()

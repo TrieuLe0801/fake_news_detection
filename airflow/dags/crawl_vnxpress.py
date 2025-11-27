@@ -151,7 +151,7 @@ def crawl_vnexpress_health(
 
                     # Preprocess and normalize content
                     news["normalized_content"] = word_segmentation(
-                        clean_text(content), lib="", remove_stopwords=True
+                        clean_text(content), lib="pyvi", remove_stopwords=True
                     )
                 else:
                     logger.info(f"Content not found in {url}")
