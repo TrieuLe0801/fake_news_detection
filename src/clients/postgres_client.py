@@ -46,8 +46,17 @@ def insert_or_update(df: pd.DataFrame, engine: object, mode: str = "upsert"):
                     """,
                     buffer,
                 )
+            # Step 3: Remove duplicates in temp table
+            cursor.execute(
+                f"""
+                CREATE TEMP TABLE dedup_{table_name} AS
+                SELECT DISTINCT ON (url) *
+                FROM temp_{table_name}
+                ORDER BY url;
+                """
+            )
 
-            # Step 3: Merge data with conflict handling
+            # Step 4: Merge data with conflict handling
             if mode == "ignore":
                 conflict_action = "DO NOTHING"
             elif mode == "upsert":
@@ -58,15 +67,17 @@ def insert_or_update(df: pd.DataFrame, engine: object, mode: str = "upsert"):
             else:
                 raise ValueError("Invalid mode. Use 'upsert' or 'ignore'.")
 
+            # Step 5: MERGE into main table
             cursor.execute(
                 f"""
                 INSERT INTO {table_name} ({','.join(df.columns)})
-                SELECT {','.join(df.columns)} FROM temp_{table_name}
+                SELECT {','.join(df.columns)} FROM dedup_{table_name}
                 ON CONFLICT (url) {conflict_action};
             """
             )
-            # Remove temporary table after insert or upsert
+            # Remove temporary tables after insert or upsert
             cursor.execute(f"DROP TABLE IF EXISTS temp_{table_name};")
+            cursor.execute(f"DROP TABLE IF EXISTS dedup_{table_name};")
 
         raw_conn.commit()
 
