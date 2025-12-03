@@ -47,7 +47,6 @@ def word_segmentation(text: str, lib: str = "", remove_stopwords: bool = False):
         with open(stopwords_path, "r", encoding="utf-8") as file:
             stopwords = set(w.strip() for w in file.readlines())
         clean_text = [w for w in text if w not in stopwords]
-        print(clean_text)
         text = clean_text
 
     return " ".join(text)
