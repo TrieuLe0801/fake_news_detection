@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y \
 RUN wget -O /opt/google-chrome-stable_current_amd64.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
 RUN apt-get install -y /opt/google-chrome-stable_current_amd64.deb && rm /opt/google-chrome-stable_current_amd64.deb
 
-RUN wget -O /opt/chromedriver-linux64.zip https://storage.googleapis.com/chrome-for-testing-public/141.0.7390.122/linux64/chromedriver-linux64.zip \
+RUN wget -O /opt/chromedriver-linux64.zip https://storage.googleapis.com/chrome-for-testing-public/143.0.7499.42/linux64/chromedriver-linux64.zip \
     && unzip -o /opt/chromedriver-linux64.zip && rm /opt/chromedriver-linux64.zip
 
 # Install Edge and EdgeDriver
