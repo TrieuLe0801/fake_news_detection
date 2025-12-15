@@ -25,3 +25,4 @@ streamlit[charts]
 pygwalker
 umap-learn
 rank-bm25
+bm25s
