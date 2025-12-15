@@ -130,6 +130,7 @@ def crawl_daikynguyen_health(
                 "published_at",
                 "crawled_at",
                 "is_fake",
+                "normalized_content",
             ]
         )
 
@@ -229,7 +230,7 @@ def crawl_daikynguyen_health(
 
                     # Preprocess and normalize content
                     news["normalized_content"] = word_segmentation(
-                        clean_text(content), lib="", remove_stopwords=True
+                        clean_text(content), lib="pyvi", remove_stopwords=True
                     )
                 else:
                     logger.info(f"Content not found in {url}")
