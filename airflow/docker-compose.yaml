@@ -345,6 +345,39 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+  
+  fake_news_detection:
+    image: fake_news_detection:1.0
+    container_name: fake_news_detection
+    build:
+      context: ../${AIRFLOW_PROJ_DIR:-.}
+      dockerfile: Dockerfile
+      # args:
+      #   REDIRECT_URI: ${REDIRECT_URI}
+      #   COOKIE_SECRET: ${COOKIE_SECRET}
+      #   CLIENT_ID: ${CLIENT_ID}
+      #   CLIENT_SECRET: ${CLIENT_SECRET}
+      #   TENANT_ID: ${TENANT_ID}
+    restart: always
+    volumes:
+      - ../${AIRFLOW_PROJ_DIR:-.}/src:/app/src:ro
+      - ../${AIRFLOW_PROJ_DIR:-.}/vncorenlp:/app/vncorenlp:ro
+      - ../${AIRFLOW_PROJ_DIR:-.}/vietnamese-stopwords-dash.txt:/app/vietnamese-stopwords-dash.txt:ro
+    ports:
+      - "8001:8001"
+    # env_file: "./.env"
+    environment:
+      DATABASE_URL: postgresql+psycopg2://airflow:airflow@airflow-postgres-1:5432/airflow
+      VNCORENLP_PATH: /app/vncorenlp
+      STOPWORDS_PATH: /app/vietnamese-stopwords-dash.txt
+    entrypoint: "/bin/sh"
+    command: -c "export PYTHONPATH=$PWD && streamlit run app.py --server.port=8001 --server.address='0.0.0.0'"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001"]
+      interval: 1m30s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
 
 volumes:
   postgres-db-volume:
