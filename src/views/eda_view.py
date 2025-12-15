@@ -236,7 +236,7 @@ class EDAView:
             embedding_method = st.radio(
                 "Embedding Method",
                 options=["TF-IDF", "BM25"],
-                index=0,
+                index=1,
                 help="""
                 **TF-IDF:** Classic method, linear weighting
                 **BM25:** Modern method, non-linear saturation, better for ranking
@@ -244,24 +244,25 @@ class EDAView:
             )
 
             reduction_method = st.selectbox(
-                "Reduction Method", options=["SVD", "PCA", "UMAP", "t-SNE"], index=0
+                "Reduction Method", options=["SVD", "PCA", "UMAP", "t-SNE"], index=1
             )
 
             n_components = st.radio(
                 "Dimensions",
                 options=[2, 3],
-                index=0,
+                index=1,
                 help="2D for simple visualization, 3D for more detail",
             )
 
-            max_features = st.slider(
-                "Max TF-IDF Features",
-                min_value=1000,
-                max_value=10000,
-                value=5000,
-                step=1000,
-                help="Maximum number of TF-IDF features",
-            )
+            # max_features = st.slider(
+            #     "Max TF-IDF Features",
+            #     min_value=1000,
+            #     max_value=10000,
+            #     value=5000,
+            #     step=1000,
+            #     help="Maximum number of TF-IDF features",
+            # )
+            max_features = 5000  # Fixed to 5000 for BM25 optimization
 
             show_sources = st.checkbox("Color by Source", value=False)
             show_top_terms = st.checkbox("Show Top Weighted Terms", value=True)
@@ -322,26 +323,60 @@ class EDAView:
             """
             )
 
-            # Compute embeddings
-            with st.spinner(f"Computing {embedding_method} embeddings..."):
-                # Step 1: Compute TF-IDF/BM25 matrix
-                matrix, vectorizer = self.viz["compute_embeddings"](
-                    df,
-                    text_col,
-                    method=embedding_method.lower().replace("-", ""),
-                    max_features=max_features,
-                )
+            # Get latest cache
+            if len(st.session_state.embedding_cache) > 0:
+                cache_list = sorted(st.session_state.embedding_cache.items(), key=lambda x: x[1]["timestamp"], reverse=True)
+                latest_cache = cache_list[0][1] if cache_list else None
+                print(latest_cache)
 
-            with st.spinner(f"Reducing dimensions with {reduction_method}..."):
-                # Step 2: Reduce dimensions
-                embeddings = self.viz["reduce_dimensions"](
-                    matrix,
-                    method=reduction_method.lower().replace("-", ""),
-                    n_components=n_components,
-                )
+                # Compute embeddings
+                if latest_cache and latest_cache["embedding_method"] == embedding_method and latest_cache["max_features"] == max_features:
+                    # Reuse matrix if embedding method and features match
+                    matrix = latest_cache["matrix"]
+                    vectorizer = latest_cache["vectorizer"]
+                else:
+                    with st.spinner(f"Computing {embedding_method} embeddings..."):
+                        # Step 1: Compute TF-IDF/BM25 matrix
+                        matrix, vectorizer = self.viz["compute_embeddings"](
+                            df,
+                            text_col,
+                            method=embedding_method.lower().replace("-", ""),
+                            max_features=max_features,
+                        )
+                if latest_cache and latest_cache["reduction_method"] == reduction_method and latest_cache["dimensions"] == n_components:
+                    # Reuse embeddings if reduction method and dimensions match
+                    embeddings = latest_cache["embeddings"]
+                else:
+                    with st.spinner(f"Reducing dimensions with {reduction_method}..."):
+                        # Step 2: Reduce dimensions
+                        embeddings = self.viz["reduce_dimensions"](
+                            matrix,
+                            method=reduction_method.lower().replace("-", ""),
+                            n_components=n_components,
+                        )
+            else:
+                with st.spinner(f"Computing {embedding_method} embeddings..."):
+                    # Step 1: Compute TF-IDF/BM25 matrix
+                    matrix, vectorizer = self.viz["compute_embeddings"](
+                        df,
+                        text_col,
+                        method=embedding_method.lower().replace("-", ""),
+                        max_features=max_features,
+                    )
+                with st.spinner(f"Reducing dimensions with {reduction_method}..."):
+                    # Step 2: Reduce dimensions
+                    embeddings = self.viz["reduce_dimensions"](
+                        matrix,
+                        method=reduction_method.lower().replace("-", ""),
+                        n_components=n_components,
+                    )
 
             # Cache the results
             st.session_state.embedding_cache[cache_key] = {
+                "embedding_method": embedding_method,
+                "max_features": max_features,
+                "reduction_method": reduction_method,
+                "dimensions": n_components,
                 "matrix": matrix,
                 "vectorizer": vectorizer,
                 "embeddings": embeddings,

@@ -1,6 +1,7 @@
 import os
+import time
 from threading import RLock
-from typing import Tuple
+from typing import Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,11 +9,12 @@ import pandas as pd
 import scipy.sparse as sp
 import seaborn as sns
 import umap
-from rank_bm25 import BM25Okapi
 from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.manifold import TSNE
 from wordcloud import WordCloud
+
+from src.model_handlers.bm25_handler import BM25Handler
 
 plot_lock = RLock()
 
@@ -141,66 +143,6 @@ def ngram_by_label(
     return figs
 
 
-def compute_bm25_embeddings(df: pd.DataFrame, text_col: str, max_features: int = None) -> Tuple:
-    """Compute BM25 embeddings for text data
-
-    Args:
-        df (pd.DataFrame): DataFrame with text data
-        text_col (str): Column name containing text
-        max_features (int, optional): Maximum number of features. Defaults to None.
-
-    Returns:
-        bm25_matrix: BM25 sparse matrix
-        vectorizer: Fitted CountVectorizer (for feature names)
-    """
-    # Auto-calculate max_features if not provided
-    if max_features is None:
-        avg_tokens = df[text_col].astype(str).str.split().str.len().mean()
-        max_features = min(3000, int(avg_tokens * 1.5))
-        print(
-            f"Auto-selected max_features: {max_features} (based on avg tokens: {int(avg_tokens)})"
-        )
-
-    # First, use CountVectorizer to get vocabulary
-    vectorizer = CountVectorizer(
-        max_features=max_features, ngram_range=(1, 2), min_df=2, max_df=0.95, stop_words=None
-    )
-
-    # Fit vectorizer to get vocabulary
-    vectorizer.fit(df[text_col].astype(str))
-    vocabulary = vectorizer.vocabulary_
-    feature_names = vectorizer.get_feature_names_out()
-
-    # Tokenize documents according to vocabulary
-    def tokenize_with_vocab(text):
-        tokens = text.lower().split()
-        return [token for token in tokens if token in vocabulary]
-
-    # Tokenize all documents
-    tokenized_corpus = [tokenize_with_vocab(doc) for doc in df[text_col].astype(str)]
-
-    # Compute BM25
-    bm25 = BM25Okapi(tokenized_corpus)
-
-    # Create Matrix
-    bm25_scores = []
-
-    for doc_tokens in tokenized_corpus:
-        # Get BM25 scores for this document
-        doc_scores = bm25.get_scores(doc_tokens)
-        bm25_scores.append(doc_scores)
-
-    # Convert to sparse matrix format (similar to TF-IDF)
-    bm25_matrix = sp.csr_matrix(bm25_scores)
-
-    # Print info
-    sparsity = 1.0 - (bm25_matrix.nnz / (bm25_matrix.shape[0] * bm25_matrix.shape[1]))
-    print(f"BM25 matrix shape: {bm25_matrix.shape}")
-    print(f"Sparsity: {sparsity*100:.2f}%")
-
-    return bm25_matrix, vectorizer
-
-
 def compute_bm25_normalized_embeddings(df: pd.DataFrame, text_col: str, max_features: int = None):
     """
     Compute BM25 embeddings using a simpler, more efficient approach
@@ -269,7 +211,12 @@ def compute_bm25_normalized_embeddings(df: pd.DataFrame, text_col: str, max_feat
 
 
 def compute_embeddings(
-    df: pd.DataFrame, text_col: str, method: str = "tfidf", max_features: int = None
+    df: pd.DataFrame,
+    text_col: str,
+    method: str = "tfidf",
+    max_features: int = None,
+    stopwords: Optional[set] = None,
+    n_jobs: int = -1,
 ):
     """
     Unified function to compute embeddings using TF-IDF or BM25
@@ -287,7 +234,12 @@ def compute_embeddings(
     if method.lower() == "tfidf":
         return compute_tfidf_embeddings(df, text_col, max_features)
     elif method.lower() == "bm25":
-        return compute_bm25_normalized_embeddings(df, text_col, max_features)
+        # Use BM25Handler
+        bm25_handler = BM25Handler(
+            max_features=max_features or 5000, method="lucene", stopwords=stopwords, n_jobs=n_jobs
+        )
+        bm25_handler.fit(df, text_col)
+        return bm25_handler.bm25_matrix, bm25_handler.vectorizer
     else:
         raise ValueError(f"Unknown method: {method}. Use 'tfidf' or 'bm25'")
 
@@ -313,40 +265,164 @@ def compute_tfidf_embeddings(df: pd.DataFrame, text_col: str, max_features: int 
 
 
 def reduce_dimensions(
-    tfidf_matrix, method: str = "pca", n_components: int = 2, random_state: int = 42
+    tfidf_matrix,
+    method: str = "pca",
+    n_components: int = 2,
+    random_state: int = 42,
+    n_jobs: int = -1,
+    verbose: bool = True,
 ):
     """
-    Reduce TF-IDF dimensions for visualization
+    Reduce TF-IDF dimensions for visualization with PARALLEL PROCESSING
+
+    Optimized for:
+    - Large sparse matrices (10K+ documents)
+    - Multi-core parallelism (especially UMAP)
+    - Memory efficiency
+    - Speed improvements
 
     Args:
         tfidf_matrix: TF-IDF sparse matrix
         method: Reduction method ('pca', 'tsne', 'umap', 'svd')
         n_components: Number of dimensions (typically 2 or 3)
         random_state: Random seed for reproducibility
+        n_jobs: Number of CPU cores (-1 = all cores, works for UMAP and t-SNE)
+        verbose: Show progress and timing information
 
     Returns:
-        embeddings: Reduced dimension embeddings
+        embeddings: Reduced dimension embeddings (n_samples, n_components)
     """
+    start_time = time.time()
+    n_samples, n_features = tfidf_matrix.shape
+
+    if verbose:
+        print(f"\n{'='*60}")
+        print(f"Dimensionality Reduction: {method.upper()}")
+        print(f"{'='*60}")
+        print(f"Input shape: {tfidf_matrix.shape}")
+        print(f"Target dimensions: {n_components}")
+        print(f"CPU cores: {n_jobs if n_jobs > 0 else 'all available'}")
+
     if method == "pca":
-        reducer = PCA(n_components=n_components, random_state=random_state)
-        embeddings = reducer.fit_transform(tfidf_matrix.toarray())
+        # PCA: Use IncrementalPCA for large datasets or regular PCA
+        if n_samples > 10000:
+            # For very large datasets, use IncrementalPCA
+            from sklearn.decomposition import IncrementalPCA
+
+            if verbose:
+                print("Using IncrementalPCA for large dataset...")
+
+            # Convert to dense in batches
+            reducer = IncrementalPCA(n_components=n_components)
+            batch_size = 1000
+
+            for i in range(0, n_samples, batch_size):
+                batch = tfidf_matrix[i : i + batch_size].toarray()
+                reducer.partial_fit(batch)
+                if verbose and (i + batch_size) % 5000 == 0:
+                    print(f"  Fitted {min(i + batch_size, n_samples):,}/{n_samples:,} samples")
+
+            embeddings = reducer.transform(tfidf_matrix.toarray())
+        else:
+            if verbose:
+                print("Using standard PCA...")
+            reducer = PCA(n_components=n_components, random_state=random_state)
+            embeddings = reducer.fit_transform(tfidf_matrix.toarray())
+
+            if verbose:
+                explained_var = reducer.explained_variance_ratio_.sum() * 100
+                print(f"Explained variance: {explained_var:.2f}%")
+
     elif method == "svd":
-        reducer = TruncatedSVD(n_components=n_components, random_state=random_state)
+        if verbose:
+            print("Using TruncatedSVD (optimized for sparse matrices)...")
+
+        # TruncatedSVD is already optimized for sparse matrices
+        reducer = TruncatedSVD(
+            n_components=n_components,
+            random_state=random_state,
+            algorithm="randomized",  # Faster for large matrices
+        )
         embeddings = reducer.fit_transform(tfidf_matrix)
+
+        if verbose:
+            explained_var = reducer.explained_variance_ratio_.sum() * 100
+            print(f"Explained variance: {explained_var:.2f}%")
+
     elif method == "tsne":
+        if verbose:
+            print("Using t-SNE with pre-reduction...")
+
         # First reduce to 50 dimensions with SVD for efficiency
-        if tfidf_matrix.shape[1] > 50:
+        if n_features > 50:
+            if verbose:
+                print("  Step 1: SVD pre-reduction to 50 dimensions...")
             svd = TruncatedSVD(n_components=50, random_state=random_state)
             tfidf_reduced = svd.fit_transform(tfidf_matrix)
         else:
             tfidf_reduced = tfidf_matrix.toarray()
-        reducer = TSNE(n_components=n_components, random_state=random_state, perplexity=30)
+
+        if verbose:
+            print(f"  Step 2: t-SNE reduction to {n_components} dimensions...")
+
+        # Optimize t-SNE parameters
+        perplexity = min(30, n_samples - 1)  # Adjust perplexity for small datasets
+
+        # t-SNE with parallelism (if scikit-learn supports it)
+        reducer = TSNE(
+            n_components=n_components,
+            random_state=random_state,
+            perplexity=perplexity,
+            max_iter=1000,
+            n_jobs=n_jobs,  # Parallel processing
+            method="barnes_hut",  # Faster for large datasets
+            angle=0.5,  # Balance between speed and accuracy
+            verbose=1 if verbose else 0,
+        )
         embeddings = reducer.fit_transform(tfidf_reduced)
+
     elif method == "umap":
-        reducer = umap.UMAP(n_components=n_components, random_state=random_state)
-        embeddings = reducer.fit_transform(tfidf_matrix)
+        if verbose:
+            print("Using UMAP with parallel processing...")
+
+        # Pre-reduce dimensions for very large feature spaces
+        if n_features > 1000:
+            if verbose:
+                print(f"  Step 1: SVD pre-reduction from {n_features:,} to 100 dimensions...")
+            svd = TruncatedSVD(n_components=100, random_state=random_state)
+            tfidf_reduced = svd.fit_transform(tfidf_matrix)
+        else:
+            tfidf_reduced = tfidf_matrix
+
+        if verbose:
+            print(f"  Step 2: UMAP reduction to {n_components} dimensions...")
+
+        # UMAP with PARALLEL PROCESSING (KEY OPTIMIZATION!)
+        reducer = umap.UMAP(
+            n_components=n_components,
+            random_state=random_state,
+            n_jobs=n_jobs,  # USE ALL CPU CORES!
+            n_neighbors=15,  # Default, good balance
+            min_dist=0.1,  # Default, good for visualization
+            metric="cosine",  # Good for text data
+            low_memory=False,  # Faster but uses more RAM
+            verbose=verbose,
+        )
+        embeddings = reducer.fit_transform(tfidf_reduced)
+
     else:
-        raise ValueError(f"Unknown method: {method}")
+        raise ValueError(f"Unknown method: {method}. Choose from: pca, svd, tsne, umap")
+
+    elapsed_time = time.time() - start_time
+
+    if verbose:
+        print(f"\n{'='*60}")
+        print(f"✓ Reduction complete!")
+        print(f"{'='*60}")
+        print(f"Output shape: {embeddings.shape}")
+        print(f"Time elapsed: {elapsed_time:.1f}s")
+        print(f"Speed: {n_samples/elapsed_time:.0f} samples/sec")
+        print(f"{'='*60}\n")
 
     return embeddings
 
