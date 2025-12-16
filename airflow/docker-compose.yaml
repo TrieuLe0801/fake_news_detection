@@ -360,6 +360,7 @@ services:
       #   TENANT_ID: ${TENANT_ID}
     restart: always
     volumes:
+      - ../${AIRFLOW_PROJ_DIR:-.}/pages:/app/pages:ro
       - ../${AIRFLOW_PROJ_DIR:-.}/src:/app/src:ro
       - ../${AIRFLOW_PROJ_DIR:-.}/vncorenlp:/app/vncorenlp:ro
       - ../${AIRFLOW_PROJ_DIR:-.}/vietnamese-stopwords-dash.txt:/app/vietnamese-stopwords-dash.txt:ro
