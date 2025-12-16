@@ -325,12 +325,20 @@ class EDAView:
 
             # Get latest cache
             if len(st.session_state.embedding_cache) > 0:
-                cache_list = sorted(st.session_state.embedding_cache.items(), key=lambda x: x[1]["timestamp"], reverse=True)
+                cache_list = sorted(
+                    st.session_state.embedding_cache.items(),
+                    key=lambda x: x[1]["timestamp"],
+                    reverse=True,
+                )
                 latest_cache = cache_list[0][1] if cache_list else None
                 print(latest_cache)
 
                 # Compute embeddings
-                if latest_cache and latest_cache["embedding_method"] == embedding_method and latest_cache["max_features"] == max_features:
+                if (
+                    latest_cache
+                    and latest_cache["embedding_method"] == embedding_method
+                    and latest_cache["max_features"] == max_features
+                ):
                     # Reuse matrix if embedding method and features match
                     matrix = latest_cache["matrix"]
                     vectorizer = latest_cache["vectorizer"]
@@ -343,7 +351,11 @@ class EDAView:
                             method=embedding_method.lower().replace("-", ""),
                             max_features=max_features,
                         )
-                if latest_cache and latest_cache["reduction_method"] == reduction_method and latest_cache["dimensions"] == n_components:
+                if (
+                    latest_cache
+                    and latest_cache["reduction_method"] == reduction_method
+                    and latest_cache["dimensions"] == n_components
+                ):
                     # Reuse embeddings if reduction method and dimensions match
                     embeddings = latest_cache["embeddings"]
                 else:
