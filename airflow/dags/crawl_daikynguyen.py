@@ -238,7 +238,7 @@ def crawl_daikynguyen_health(
                 # Save to CSV immediately
                 new_row = pd.DataFrame([news])
                 existing_df = pd.concat([existing_df, new_row]).drop_duplicates(
-                    subset=["url"], keep="first"
+                    subset=["url"], keep="last"
                 )
 
                 # Drop NaN content
