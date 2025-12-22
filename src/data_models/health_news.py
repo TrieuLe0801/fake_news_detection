@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
@@ -8,10 +8,11 @@ Base = declarative_base()
 
 class HealthNews(Base):
     __tablename__ = "health_news"
+    __table_args__ = (UniqueConstraint("url", "title", name="uq_url_title"),)
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(String(500), nullable=False)
-    url = Column(String(1000), unique=True, nullable=False)
+    url = Column(String(1000), unique=False)
     source = Column(String(200), nullable=True)
     summary = Column(Text, nullable=True)
     content = Column(Text, nullable=True)
