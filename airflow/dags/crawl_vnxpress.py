@@ -168,7 +168,7 @@ def crawl_vnexpress_health(
                 # Save to CSV immediately
                 new_rows = pd.DataFrame([news])
                 existing_df = pd.concat([existing_df, new_rows]).drop_duplicates(
-                    subset=["url"], keep="last"
+                    subset=["url", "title", "content"], keep="last"
                 )
                 # Handle the TIMESTAMP
                 existing_df["crawled_at"] = pd.to_datetime(
