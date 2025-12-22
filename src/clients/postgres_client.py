@@ -46,13 +46,13 @@ def insert_or_update(df: pd.DataFrame, engine: object, mode: str = "upsert"):
                     """,
                     buffer,
                 )
-            # Step 3: Remove duplicates in temp table
+            # Step 3: Remove duplicates in temp table by url and title
             cursor.execute(
                 f"""
                 CREATE TEMP TABLE dedup_{table_name} AS
-                SELECT DISTINCT ON (url) *
+                SELECT DISTINCT ON (url, title) *
                 FROM temp_{table_name}
-                ORDER BY url;
+                ORDER BY url, title;
                 """
             )
 
@@ -61,7 +61,7 @@ def insert_or_update(df: pd.DataFrame, engine: object, mode: str = "upsert"):
                 conflict_action = "DO NOTHING"
             elif mode == "upsert":
                 update_clause = ", ".join(
-                    [f"{col}=EXCLUDED.{col}" for col in df.columns if col != "url"]
+                    [f"{col}=EXCLUDED.{col}" for col in df.columns if col not in ("url", "title")]
                 )
                 conflict_action = f"DO UPDATE SET {update_clause}"
             else:
@@ -72,7 +72,7 @@ def insert_or_update(df: pd.DataFrame, engine: object, mode: str = "upsert"):
                 f"""
                 INSERT INTO {table_name} ({','.join(df.columns)})
                 SELECT {','.join(df.columns)} FROM dedup_{table_name}
-                ON CONFLICT (url) {conflict_action};
+                ON CONFLICT (url, title) {conflict_action};
             """
             )
             # Remove temporary tables after insert or upsert
