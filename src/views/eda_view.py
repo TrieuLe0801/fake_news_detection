@@ -254,15 +254,15 @@ class EDAView:
                 help="2D for simple visualization, 3D for more detail",
             )
 
-            # max_features = st.slider(
-            #     "Max TF-IDF Features",
-            #     min_value=1000,
-            #     max_value=10000,
-            #     value=5000,
-            #     step=1000,
-            #     help="Maximum number of TF-IDF features",
-            # )
-            max_features = 5000  # Fixed to 5000 for BM25 optimization
+            max_features = st.slider(
+                "Max TF-IDF Features",
+                min_value=1000,
+                max_value=10000,
+                value=5000,
+                step=1000,
+                help="Maximum number of TF-IDF features",
+            )
+            # max_features = 5000  # Fixed to 5000 for BM25 optimization
 
             show_sources = st.checkbox("Color by Source", value=False)
             show_top_terms = st.checkbox("Show Top Weighted Terms", value=True)
