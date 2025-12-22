@@ -1,5 +1,6 @@
 import streamlit as st
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import pandas as pd
 from typing import Dict, List, Optional, Any
 
@@ -12,8 +13,10 @@ class DetectionView:
         st.title("Fake News Detection")
         st.markdown("""
         Enter a news article text below to check if it's likely to be fake or real news.
-        The system uses BM25 similarity to find the most similar articles in our database
-        and predicts based on their labels.
+
+        **Detection Methods:**
+        - **BM25 Only**: Uses BM25 similarity to find similar articles and predict based on their labels
+        - **Hybrid (BM25 + Semantic)**: Combines BM25 with semantic vectors via external API for more accurate detection
         """)
 
     def render_input_form(self) -> Optional[str]:
@@ -162,3 +165,162 @@ class DetectionView:
         The detection system requires labeled articles (fake/real) in the database
         to make predictions. Please ensure the database contains labeled articles.
         """)
+
+    def render_hybrid_result(self, result: Dict[str, Any]):
+        """Render hybrid detection result with fake/real probabilities."""
+        st.divider()
+        st.subheader("Hybrid Detection Result")
+
+        label = result.get("label", 0)
+        label_text = result.get("label_text", "Unknown")
+        confidence = result.get("confidence", 0.0)
+        fake_probability = result.get("fake_probability", 0.5)
+        real_probability = result.get("real_probability", 0.5)
+
+        # Main result display
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            if label == 1:
+                st.error(f"**Prediction: {label_text}**")
+            else:
+                st.success(f"**Prediction: {label_text}**")
+
+        with col2:
+            st.metric("Confidence", f"{confidence:.1%}")
+
+        with col3:
+            st.metric("Label", label)
+
+        # Dual probability visualization
+        self._render_dual_probability_chart(fake_probability, real_probability)
+
+        # Interpretation
+        self._render_interpretation(fake_probability, label_text)
+
+    def _render_dual_probability_chart(self, fake_prob: float, real_prob: float):
+        """Render side-by-side probability charts for fake and real."""
+        st.subheader("Probability Distribution")
+
+        # Create subplot with two gauges
+        fig = make_subplots(
+            rows=1, cols=2,
+            specs=[[{"type": "indicator"}, {"type": "indicator"}]],
+            subplot_titles=("Fake Probability", "Real Probability")
+        )
+
+        # Fake probability gauge
+        fig.add_trace(
+            go.Indicator(
+                mode="gauge+number",
+                value=fake_prob * 100,
+                number={'suffix': "%", 'font': {'size': 32}},
+                gauge={
+                    'axis': {'range': [0, 100], 'tickwidth': 1},
+                    'bar': {'color': "#e74c3c"},
+                    'bgcolor': "white",
+                    'borderwidth': 2,
+                    'bordercolor': "gray",
+                    'steps': [
+                        {'range': [0, 30], 'color': '#d5f5e3'},
+                        {'range': [30, 70], 'color': '#fdebd0'},
+                        {'range': [70, 100], 'color': '#fadbd8'}
+                    ],
+                    'threshold': {
+                        'line': {'color': "#c0392b", 'width': 4},
+                        'thickness': 0.75,
+                        'value': fake_prob * 100
+                    }
+                }
+            ),
+            row=1, col=1
+        )
+
+        # Real probability gauge
+        fig.add_trace(
+            go.Indicator(
+                mode="gauge+number",
+                value=real_prob * 100,
+                number={'suffix': "%", 'font': {'size': 32}},
+                gauge={
+                    'axis': {'range': [0, 100], 'tickwidth': 1},
+                    'bar': {'color': "#27ae60"},
+                    'bgcolor': "white",
+                    'borderwidth': 2,
+                    'bordercolor': "gray",
+                    'steps': [
+                        {'range': [0, 30], 'color': '#fadbd8'},
+                        {'range': [30, 70], 'color': '#fdebd0'},
+                        {'range': [70, 100], 'color': '#d5f5e3'}
+                    ],
+                    'threshold': {
+                        'line': {'color': "#1e8449", 'width': 4},
+                        'thickness': 0.75,
+                        'value': real_prob * 100
+                    }
+                }
+            ),
+            row=1, col=2
+        )
+
+        fig.update_layout(
+            height=300,
+            margin=dict(l=20, r=20, t=50, b=20)
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Bar chart comparison
+        fig_bar = go.Figure(data=[
+            go.Bar(
+                x=["Fake", "Real"],
+                y=[fake_prob * 100, real_prob * 100],
+                marker_color=["#e74c3c", "#27ae60"],
+                text=[f"{fake_prob:.1%}", f"{real_prob:.1%}"],
+                textposition="auto"
+            )
+        ])
+
+        fig_bar.update_layout(
+            title="Probability Comparison",
+            yaxis_title="Probability (%)",
+            yaxis_range=[0, 100],
+            height=250,
+            margin=dict(l=20, r=20, t=50, b=20)
+        )
+
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+    def _render_interpretation(self, fake_probability: float, label_text: str):
+        """Render interpretation of the result."""
+        st.subheader("Interpretation")
+
+        if fake_probability < 0.3:
+            st.info(f"""
+            **Low Risk - Likely {label_text}**
+
+            The hybrid analysis indicates this article appears to be reliable.
+            Both BM25 similarity and semantic analysis suggest authentic content.
+            """)
+        elif fake_probability < 0.7:
+            st.warning(f"""
+            **Medium Risk - Uncertain**
+
+            The hybrid analysis shows mixed signals. The prediction is **{label_text}**
+            but confidence is moderate. Please verify from multiple sources.
+            """)
+        else:
+            st.error(f"""
+            **High Risk - Likely {label_text}**
+
+            The hybrid analysis strongly indicates this article may be fake news.
+            Both BM25 patterns and semantic features suggest unreliable content.
+            Exercise caution and verify from authoritative sources.
+            """)
+
+    def render_api_error(self, message: str, status_code: Optional[int] = None):
+        """Render API error message."""
+        if status_code:
+            st.error(f"API Error (Status {status_code}): {message}")
+        else:
+            st.error(f"API Error: {message}")
